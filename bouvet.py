@@ -1,4 +1,5 @@
 import click
+from click import progressbar
 import subprocess, json, requests, datetime
 
 @click.group()
@@ -12,6 +13,31 @@ def cli():
 def hei(namn: str):
     """Seiar hei til <NAMN>."""
     click.echo(f"Hei, {namn}!")
+
+@cli.command()
+def hallo():
+    """Seiar hallo til deg, og spør om namnet ditt."""
+    namn = click.prompt("Hallo, der! Kva er namnet ditt?")
+
+    if namn[0] == namn[0].lower():
+        nytt_namn = namn[0].upper() + namn[1:]
+        svar = click.confirm(f"Heitar du egenleg {nytt_namn}?", default=False)
+        if svar:
+            namn = nytt_namn
+
+    click.echo(f"Hallo, {namn}! Hyggleg å møte deg.")
+
+@cli.command()
+def last_inn():
+    """Laster inn noko treigt."""
+    from time import sleep
+
+    click.echo("Byrjar innlastning...")
+    with progressbar(range(5)) as liste:
+        for ting in liste:
+            sleep(1)
+    click.echo("Ferdig med innlasting!")
+    
 
 @cli.command()
 def gs():
