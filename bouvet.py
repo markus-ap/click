@@ -1,6 +1,9 @@
 import click
 from click import progressbar
+from flask import Flask
 import subprocess, json, requests, datetime
+
+app = Flask("Bouvet")
 
 @click.group()
 def cli():
@@ -10,9 +13,12 @@ def cli():
 
 @cli.command()
 @click.argument("namn", type=str, nargs=1)
+@app.route("/hei/<namn>", methods=["GET"])
 def hei(namn: str):
     """Seiar hei til <NAMN>."""
-    click.echo(f"Hei, {namn}!")
+    resultat = f"Hei, {namn}!"
+    click.echo(resultat)
+    return {"melding": resultat}
 
 @cli.command()
 def hallo():
@@ -75,10 +81,8 @@ def lunsj(dag: str, oppe: bool, nede: bool):
 
     base_url = "https://kantinemeny.azurewebsites.net/ukesmeny"
     oppe_url = f"{base_url}?lokasjon=TFN.Solheimsgaten13@toma.no"
-    oppe_suppe = f"{base_url}suppe?lokasjon=TFN.Solheimsgaten13@toma.no"
 
     nede_url = f"{base_url}?lokasjon=skipsbyggerhallen@albatross-as.no"
-    nede_suppe = f"{base_url}suppe?lokasjon=skipsbyggerhallen@albatross-as.no"
 
     if dag is not None:    
         dag = dag.lower()
@@ -126,36 +130,50 @@ def lunsj(dag: str, oppe: bool, nede: bool):
     click.echo(f"Mat for {dag.lower()}")
     if oppe:
         click.echo("Oppe:")
-        oppe_lunsj = hent_lunsj(oppe_url, dag)
+        oppe_lunsj, oppe_suppe = hent_lunsj(oppe_url, dag)
         click.echo(f"Varmmat: {oppe_lunsj}")
-        oppe_suppe = hent_lunsj(oppe_suppe, dag)
         click.echo(f"Suppe: {oppe_suppe}\n")
 
     if nede:
         click.echo("Nede:")
-        nede_lunsj = hent_lunsj(nede_url, dag)
+        nede_lunsj, nede_suppe = hent_lunsj(nede_url, dag)
         click.echo(f"Varmmat: {nede_lunsj}")
-        nede_suppe = hent_lunsj(nede_suppe, dag)
         click.echo(f"Suppe: {nede_suppe}")
 
 
 def hent_lunsj(sti: str, idag: str) -> str:
+    idag = idag.lower()
+    days = {
+        "mandag": "monday",
+        "tirsdag": "tuesday",
+        "onsdag":  "wednesday",
+        "torsdag": "thursday",
+        "fredag": "friday"
+    }
+    if idag in days:
+        idag = days[idag]
     from bs4 import BeautifulSoup
     resultat = requests.get(sti)
     suppe = BeautifulSoup(resultat.text, "html.parser")
-    dager = suppe.find_all("div", class_="ukedag")
 
-    for dag in dager:
-        dagnamn = dag.find("div", class_="dag").text
-        if idag == dagnamn:
-            dagsrett = dag.find("span", class_="dagsrett").text
-            garnity = dag.find("span", class_="dagsrettgarnityr").text
-            rett = dagsrett + garnity
-            return rett
-    raise DagUnntak()
+    js = suppe.find("script").text
+    js = js.replace("var uke = ", "").strip()[:-1]
+    js = json.loads(js)
+    dagensmat = js[idag]
+
+    varm = dagensmat["h_navn"]
+    grat = dagensmat["h_garnityr"]
+    suppe = dagensmat["s_navn"]
+    if grat is None: grat = ""
+    if varm is None: varm = ""
+    if suppe is None: suppe = ""
+
+    varm = varm.strip()
+    grat = grat.strip()
+    suppe = suppe.strip()
+
+    return f"{varm} {grat}", suppe
 
 
-
-class DagUnntak(Exception):
-    def __init__(self, message="Ingen dag traff."):
-        super().__init__(message)
+if __name__ == "__main__":
+    app.run()
